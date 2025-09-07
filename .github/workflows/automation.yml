@@ -1,36 +1,49 @@
-name: YouTube to Facebook Automation
+name: Auto YouTube → Facebook clip
 
 on:
   schedule:
-    # Runs every day at 10:00 AM IST (04:30 UTC)
-    - cron: '30 4 * * *'
-  workflow_dispatch: # Allows manual run
+    - cron: '0 * * * *'   # every hour (UTC). change as needed.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # allow commit of posted.json via GITHUB_TOKEN
 
 jobs:
-  run-script:
+  post:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.10
+          python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install deps & tools
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg python3-pip
+          pip install yt-dlp requests
 
-      - name: Install FFmpeg
-        run: sudo apt-get install -y ffmpeg
-
-      - name: Run automation script
+      - name: Run auto-post
         env:
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
-          FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
-          SEARCH_QUERY: ${{ secrets.SEARCH_QUERY }}
-        run: python auto_post.py
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          KEYWORDS: "nature,drone,timelapse,b-roll,stock footage"
+        run: |
+          python auto_post.py
+
+      - name: Commit posted.json if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add posted.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "Update posted.json" || true
+            git push
+          else
+            echo "No changes to posted.json"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
